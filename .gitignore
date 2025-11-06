@@ -1,0 +1,15 @@
+# Ignore the virtual environment
+venv/
+
+# Ignore environment variables
+.env
+
+# Ignore the SQLite database
+db.sqlite3
+
+# Ignore user-uploaded media
+media/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
