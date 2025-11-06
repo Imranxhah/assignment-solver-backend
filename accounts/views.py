@@ -1,10 +1,14 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import get_user_model
 from .models import UserProfile
 from .serializers import UserProfileSerializer, UserSerializer
+from django.core.mail import send_mail
+from django.conf import settings
+from .models import VerificationCode
+from .serializers import SendVerificationCodeSerializer, VerifyCodeSerializer
 
 User = get_user_model()
 
@@ -83,3 +87,99 @@ def check_profile_completion(request):
         'can_submit': user.is_email_verified and user.profile_completed,
         'next_step': 'complete_profile' if user.is_email_verified and not user.profile_completed else 'verify_email' if not user.is_email_verified else 'ready'
     }, status=status.HTTP_200_OK)
+
+# ✅ FIX: Allow unauthenticated access for email verification
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_verification_code(request):
+    """Send OTP code to user's email"""
+    serializer = SendVerificationCodeSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    email = serializer.validated_data['email']
+    
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not found. Please register first.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Generate code
+    code_obj, created = VerificationCode.objects.get_or_create(user=user)
+    code_obj.code = VerificationCode.generate_code()
+    code_obj.attempts = 0
+    code_obj.save()
+    
+    # Send email
+    try:
+        send_mail(
+            subject='Assignment Solver - Your Verification Code',
+            message=f'Your verification code is: {code_obj.code}\n\nValid for 10 minutes.',
+            from_email=settings.DEFAULT_FROM_EMAIL or 'noreply@example.com',
+            recipient_list=[email],
+        )
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response(
+        {'success': True, 'message': f'Code sent to {email}'},
+        status=status.HTTP_200_OK
+    )
+
+# ✅ FIX: Allow unauthenticated access for email verification
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_code(request):
+    """Verify OTP code and mark email verified"""
+    serializer = VerifyCodeSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    email = serializer.validated_data['email']
+    code = serializer.validated_data['code']
+    
+    try:
+        user = User.objects.get(email=email)
+        code_obj = VerificationCode.objects.get(user=user)
+    except (User.DoesNotExist, VerificationCode.DoesNotExist):
+        return Response(
+            {'error': 'Invalid email'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Check validity
+    if not code_obj.is_valid():
+        code_obj.delete()
+        return Response(
+            {'error': 'Code expired. Request a new one.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if code_obj.is_attempts_exceeded():
+        return Response(
+            {'error': 'Too many attempts. Request a new code.'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+    
+    if code_obj.code != code:
+        code_obj.attempts += 1
+        code_obj.save()
+        remaining = 5 - code_obj.attempts
+        return Response(
+            {'error': f'Invalid code. {remaining} attempts remaining.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # ✅ Verify user
+    user.is_email_verified = True
+    user.is_active = True
+    user.save()
+    code_obj.delete()
+    
+    return Response(
+        {'success': True, 'message': 'Email verified successfully!'},
+        status=status.HTTP_200_OK
+    )

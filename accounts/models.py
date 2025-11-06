@@ -1,5 +1,9 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+import random
+import string
+from django.utils import timezone
+from datetime import timedelta
 
 class User(AbstractUser):
     """Custom user model with email as username"""
@@ -26,3 +30,24 @@ class UserProfile(models.Model):
     
     def __str__(self):
         return f"{self.full_name} - {self.university_name}"
+
+
+class VerificationCode(models.Model):
+    """Store temporary OTP codes for email verification"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='verification_code')
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now=True)
+    attempts = models.IntegerField(default=0)
+    
+    def is_valid(self):
+        return (timezone.now() - self.created_at) < timedelta(minutes=10)
+    
+    def is_attempts_exceeded(self):
+        return self.attempts >= 5
+    
+    @staticmethod
+    def generate_code():
+        return ''.join(random.choices(string.digits, k=6))
+    
+    def __str__(self):
+        return f'{self.user.email} - {self.code}'

@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/submissions/', include('submissions.urls')),
     path('api/assignments/', include('assignments.urls')), 
     path('api/accounts/', include('accounts.urls')),
+    path('accounts/', include('accounts.urls')),
 ]
 
 # Media files (for development)

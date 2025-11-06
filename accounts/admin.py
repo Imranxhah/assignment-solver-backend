@@ -1,7 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, UserProfile
+from .models import VerificationCode
 
+@admin.register(VerificationCode)
+class VerificationCodeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'code', 'created_at', 'attempts')
+    list_filter = ('created_at',)
+    search_fields = ('user__email',)
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
