@@ -8,4 +8,7 @@ urlpatterns = [
     path('profile/update/', views.update_profile, name='update_profile'),
     path('send-code/', views.send_verification_code, name='send-code'),
     path('verify-code/', views.verify_code, name='verify-code'),
+    path('check-version/', views.check_version, name='check-version'),
+    path('resend-verification/', views.resend_verification, name='resend-verification'),
+
 ]

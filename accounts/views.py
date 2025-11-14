@@ -9,6 +9,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from .models import VerificationCode
 from .serializers import SendVerificationCodeSerializer, VerifyCodeSerializer
+from .models import AppVersion
 
 User = get_user_model()
 
@@ -173,7 +174,7 @@ def verify_code(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # ✅ Verify user
+
     user.is_email_verified = True
     user.is_active = True
     user.save()
@@ -183,3 +184,82 @@ def verify_code(request):
         {'success': True, 'message': 'Email verified successfully!'},
         status=status.HTTP_200_OK
     )
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_version(request):
+    """Check if app needs forced update"""
+    app_version = request.query_params.get('version')
+    
+    if not app_version:
+        return Response({'error': 'version parameter required'}, status=400)
+    
+    try:
+        config = AppVersion.objects.first()
+        
+        # If no config or force update disabled, allow all versions
+        if not config or not config.force_update_enabled:
+            return Response({'force_update': False})
+        
+        # Simple version comparison (assumes format: 1.0.0)
+        def version_tuple(v):
+            return tuple(map(int, v.split('.')))
+        
+        needs_update = version_tuple(app_version) < version_tuple(config.minimum_version)
+        
+        return Response({
+            'force_update': needs_update,
+            'minimum_version': config.minimum_version,
+            'update_url': config.update_url if needs_update else None,
+            'message': config.update_message if needs_update else None
+        })
+        
+    except Exception as e:
+        # On any error, don't block users
+        return Response({'force_update': False})
+
+# Add this at the end of views.py
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_verification(request):
+    """Resend verification code for inactive accounts"""
+    email = request.data.get('email')
+    
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email)
+        
+        # Check if account is inactive (not verified)
+        if user.is_active:
+            return Response(
+                {'error': 'This account is already verified. Please login.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Generate new code (reuse existing logic)
+        code_obj, created = VerificationCode.objects.get_or_create(user=user)
+        code_obj.code = VerificationCode.generate_code()
+        code_obj.attempts = 0
+        code_obj.save()
+        
+        # Send email
+        send_mail(
+            subject='Assignment Solver - Your Verification Code',
+            message=f'Your verification code is: {code_obj.code}\n\nValid for 10 minutes.',
+            from_email=settings.DEFAULT_FROM_EMAIL or 'noreply@example.com',
+            recipient_list=[email],
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Verification code sent. Please check your email.',
+            'is_new_account': False
+        }, status=status.HTTP_200_OK)
+        
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'No account found with this email. Please register first.'},
+            status=status.HTTP_404_NOT_FOUND
+        )

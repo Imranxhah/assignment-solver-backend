@@ -33,3 +33,28 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'full_name', 'university_name', 'department_name', 'created_at')
     search_fields = ('full_name', 'university_name', 'user__email')
     readonly_fields = ('created_at', 'updated_at')
+
+from .models import AppVersion
+
+@admin.register(AppVersion)
+class AppVersionAdmin(admin.ModelAdmin):
+    list_display = ('minimum_version', 'force_update_enabled', 'update_url_short')
+    fieldsets = (
+        ('Version Settings', {
+            'fields': ('minimum_version', 'force_update_enabled')
+        }),
+        ('Update Details', {
+            'fields': ('update_url', 'update_message')
+        }),
+    )
+    
+    def update_url_short(self, obj):
+        """Show shortened URL in admin list"""
+        if len(obj.update_url) > 50:
+            return obj.update_url[:47] + '...'
+        return obj.update_url
+    update_url_short.short_description = 'Update URL'
+    
+    def has_add_permission(self, request):
+        # Only allow one version config
+        return not AppVersion.objects.exists()

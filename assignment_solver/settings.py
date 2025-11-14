@@ -3,21 +3,27 @@ import os
 from decouple import config
 from datetime import timedelta
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-replace-this-in-production-123456789')
 
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)  # ✅ Changed to False
+DEBUG = config('DEBUG', default=True, cast=bool)  # ✅ Set to True for development
+
 
 # ✅ UPDATE with your PythonAnywhere domain
 ALLOWED_HOSTS = [
     'solveit.pythonanywhere.com',
     'localhost',
     '127.0.0.1',
+    '10.0.2.2',  # ✅ Add this for Android Emulator
 ]
+
 
 # Application definition
 INSTALLED_APPS = [
@@ -40,9 +46,10 @@ INSTALLED_APPS = [
     'submissions',
 ]
 
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # ✅ Must be before CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -51,7 +58,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
 ROOT_URLCONF = 'assignment_solver.urls'
+
 
 TEMPLATES = [
     {
@@ -69,7 +78,9 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = 'assignment_solver.wsgi.application'
+
 
 # Database
 DATABASES = {
@@ -79,6 +90,7 @@ DATABASES = {
     }
 }
 
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -87,35 +99,72 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+
 # Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Karachi'
 USE_I18N = True
 USE_TZ = True
 
+
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 
 # Media files (for temporary PDFs)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
 
+
 # ✅ CORS Configuration (for Flutter app)
-CORS_ALLOWED_ORIGINS = [
-    "https://solveit.pythonanywhere.com",
+if DEBUG:
+    # Development: Allow all origins for testing
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_CREDENTIALS = True
+    print("🚀 CORS: Allowing ALL origins (Development Mode)")
+else:
+    # Production: Only allow specific origins
+    CORS_ALLOWED_ORIGINS = [
+        "https://solveit.pythonanywhere.com",
+    ]
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOW_CREDENTIALS = True
+    print("🔒 CORS: Restricted to specific origins (Production Mode)")
+
+# Allow these headers from Flutter
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
-CORS_ALLOW_ALL_ORIGINS = False  # ✅ Production mode
 
-DEBUG = config('DEBUG', default=False, cast=bool)
+# Allow these methods
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
-# HTTPS only in PRODUCTION
+
+# HTTPS Settings - Only in Production
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -124,10 +173,12 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 else:
-    # ✅ Development: Disable HTTPS
+    # Development: Disable HTTPS requirements
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+
+
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -138,6 +189,7 @@ REST_FRAMEWORK = {
     ),
 }
 
+
 # JWT Settings
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
@@ -145,22 +197,23 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+
 # Djoser Configuration
 DJOSER = {
-    'SEND_ACTIVATION_EMAIL': True,
-    'ACTIVATION_URL': 'auth/users/activation/{uid}/{token}/',
-    'USER_CREATE_PASSWORD_RETYPE': True,
-    'SET_PASSWORD_RETYPE': True,
-    'USERNAME_FIELD': 'email',
-    'LOGIN_FIELD': 'email',
-    'HIDE_USERS': False,
     'SERIALIZERS': {
         'user_create': 'accounts.serializers.UserCreateSerializer',
         'user': 'accounts.serializers.UserSerializer',
         'current_user': 'accounts.serializers.UserSerializer',
         'activation': 'accounts.serializers.ActivationSerializer',
     },
+    'EMAIL': {
+        'activation': 'djoser.email.ActivationEmail',
+    },
+    'ACTIVATION_URL': 'activate/{uid}/{token}',
+    'SEND_ACTIVATION_EMAIL': True,
 }
+
+
 
 # ✅ Email Configuration (use .env variables)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -171,10 +224,12 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('EMAIL_HOST_USER', default='')
 
+
 # ✅ Gemini API Configuration (use .env)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 
+
 # Assignment Settings
 MAX_WORD_COUNT = 2000
-MAX_DAILY_SUBMISSIONS = 3
-PDF_EXPIRY_MINUTES = 10  # ✅ Changed from 20 to 10 for cleanup
+MAX_DAILY_SUBMISSIONS = 10
+PDF_EXPIRY_MINUTES = 10
